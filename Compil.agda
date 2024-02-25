@@ -108,7 +108,7 @@ data Transition (C : Code) : Config → Config → Set where
 add' : ∀ {C pc σ s n₁ n₂ pc' σ' σ''} →
   InstrAt C pc Iadd →
   pc' ≡ pc + 1ℤ →
-  σ' ≡ n₂ ∷ n₁ ∷ σ →
+  σ'  ≡ n₂ ∷ n₁ ∷ σ →
   σ'' ≡ (n₁ + n₂) ∷ σ →
   Transition C (pc , σ' , s) (pc' , σ'' , s)
 add' H Hpc Hσ Hσ' rewrite Hpc rewrite Hσ rewrite Hσ' = add H
@@ -116,8 +116,8 @@ add' H Hpc Hσ Hσ' rewrite Hpc rewrite Hσ rewrite Hσ' = add H
 opp' : ∀ {C pc σ s n pc' σ₁ σ₂} →
   InstrAt C pc Iopp →
   pc' ≡ pc + 1ℤ →
-  σ₁ ≡ n ∷ σ →
-  σ₂ ≡ (- n) ∷ σ →
+  σ₁  ≡ n ∷ σ →
+  σ₂  ≡ (- n) ∷ σ →
   Transition C (pc , σ₁ , s) (pc' , σ₂ , s)
 opp' H Hpc Hσ₁ Hσ₂ rewrite Hpc rewrite Hσ₁ rewrite Hσ₂ = opp H
 
@@ -128,22 +128,18 @@ setvar' : ∀ {C pc σ s x n pc'} →
 setvar' H Hpc rewrite Hpc = setvar H
 
 data Transitions (C : Code) : Config → Config → Set where
-  refl : ∀ {c} →
-    Transitions C c c
-  step : ∀ {c₁ c₂ c₃} →
+  one : ∀ {c₁ c₂} →
     Transition C c₁ c₂ →
+    Transitions C c₁ c₂
+  eps : ∀ {c} →
+    Transitions C c c
+  star-trans : ∀ {c₁ c₂ c₃} →
+    Transitions C c₁ c₂ →
     Transitions C c₂ c₃ →
     Transitions C c₁ c₃
 
-one : ∀ {C c₁ c₂} → Transition C c₁ c₂ → Transitions C c₁ c₂
-one H = step H refl
-
-star-trans : ∀ {C c₁ c₂} → Transitions C c₁ c₂ → ∀ {c₃} → Transitions C c₂ c₃ → Transitions C c₁ c₃
-star-trans refl Hbc = Hbc
-star-trans (step Haz Hzb) Hbc = step Haz (star-trans Hzb Hbc)
-
-star-refl : ∀ {C c₁ c₂} → c₁ ≡ c₂ → Transitions C c₁ c₂
-star-refl {C} {c₁} {c₂} H = Eq.subst (Transitions C c₁) H refl
+eps' : ∀ {C c₁ c₂} → c₁ ≡ c₂ → Transitions C c₁ c₂
+eps' H = Eq.subst (Transitions _ _) H eps
 
 compileAExp : AExp → Code
 compileAExp (CONST n) = Iconst n ∷ []
@@ -311,7 +307,7 @@ compile-com-correct-terminating : ∀ {s c s'} →
     Transitions C (pc , σ , s) ((pc + codelen (compile-com c)) , σ , s')
 
 compile-com-correct-terminating skip _ =
-  star-refl (cong (_, _ , _) (sym (+-identityʳ _)))
+  eps' (cong (_, _ , _) (sym (+-identityʳ _)))
 
 compile-com-correct-terminating (assign x a) {_} {pc} H =
   star-trans (compile-aexp-correct a (codeAtAppLeft H))
@@ -320,7 +316,7 @@ compile-com-correct-terminating (assign x a) {_} {pc} H =
 compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {_} {pc} H =
   star-trans (compile-com-correct-terminating H₁ (codeAtAppLeft H))
     (star-trans (compile-com-correct-terminating H₂ (codeAtAppRight _ H))
-      (star-refl (cong (_, _ , _) (sym (codelenApp pc (compile-com c₁))))))
+      (eps' (cong (_, _ , _) (sym (codelenApp pc (compile-com c₁))))))
 
 compile-com-correct-terminating (ifthenelse b c₁ c₂ Hc) H =
   star-trans (compile-bexp-correct b (codeAtAppLeft H))
