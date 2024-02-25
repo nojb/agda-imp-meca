@@ -5,7 +5,7 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; cong₂)
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
 open import Data.Sum
-open import Data.Bool public using (true; false; not; Bool; _∧_; _∨_; if_then_else_)
+open import Data.Bool using (true; false; not; Bool; _∧_; _∨_; if_then_else_)
 open import Data.Bool.Properties using (not-involutive)
 open import Relation.Nullary public
 open import Data.Nat using (ℕ)
@@ -92,32 +92,32 @@ beval_OR s b1 b2 =
     beval b1 s ∨ beval b2 s
   ∎
 
-data Stm : Set where
-  SKIP : Stm
-  ASSIGN : (x : Id) (a : AExp) → Stm
-  SEQ : (c1 : Stm) (c2 : Stm) → Stm
-  IFTHENELSE : (b : BExp) (c1 : Stm) (c2 : Stm) → Stm
-  WHILE : (b : BExp) (c1 : Stm) → Stm
+data Com : Set where
+  SKIP       : Com
+  ASSIGN     : (x : Id) (a : AExp) → Com
+  SEQ        : (c₁ c₂ : Com) → Com
+  IFTHENELSE : (b : BExp) (c₁ c₂ : Com) → Com
+  WHILE      : (b : BExp) (c : Com) → Com
 
 update : Id → ℤ → Store → Store
 update x v s = λ y → if does (Data.String._≟_ x y) then v else s y
 
-data _/_⇓_ : Stm → Store → Store → Set where
-  skip : ∀ s →
+data _/_⇓_ : Com → Store → Store → Set where
+  skip : ∀ {s} →
     SKIP / s ⇓ s
-  assign : ∀ s x a →
+  assign : ∀ {s} x a →
     ASSIGN x a / s ⇓ update x (aeval a s) s
-  seq : ∀ c1 c2 s s' s'' →
-    c1 / s ⇓ s' →
-    c2 / s' ⇓ s'' →
-    SEQ c1 c2 / s ⇓ s''
-  ifthenelse : ∀ b c1 c2 s s' →
-    (if beval b s then c1 else c2) / s ⇓ s' →
-    IFTHENELSE b c1 c2 / s ⇓ s'
-  while_done : ∀ b c s →
+  seq : ∀ c₁ c₂ {s s' s''} →
+    c₁ / s ⇓ s' →
+    c₂ / s' ⇓ s'' →
+    SEQ c₁ c₂ / s ⇓ s''
+  ifthenelse : ∀ b c₁ c₂ {s s'} →
+    (if beval b s then c₁ else c₂) / s ⇓ s' →
+    IFTHENELSE b c₁ c₂ / s ⇓ s'
+  while-done : ∀ b c {s} →
     beval b s ≡ false →
     WHILE b c / s ⇓ s
-  while_loop : ∀ b c s s' s'' →
+  while-loop : ∀ b c {s s' s''} →
     beval b s ≡ true →
     c / s ⇓ s' →
     WHILE b c / s' ⇓ s'' →
