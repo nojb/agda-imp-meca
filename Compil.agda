@@ -150,6 +150,38 @@ compileAExp (VAR x) = Ivar x ∷ []
 compileAExp (PLUS a₁ a₂) = compileAExp a₁ ++ compileAExp a₂ ++ Iadd ∷ []
 compileAExp (MINUS a₁ a₂) = compileAExp a₁ ++ compileAExp a₂ ++ Iopp ∷ Iadd ∷ []
 
+compile-bexp : BExp → ℤ → ℤ → Code
+compile-bexp TRUE d₁ _ = if does (d₁ ≟ 0ℤ) then [] else [ Ibranch d₁ ]
+compile-bexp FALSE _ d₀ = if does (d₀ ≟ 0ℤ) then [] else [ Ibranch d₀ ]
+compile-bexp (EQUAL a₁ a₂) d₁ d₀ = compileAExp a₁ ++ compileAExp a₂ ++ [ Ibeq d₁ d₀ ]
+compile-bexp (LESSEQUAL a₁ a₂) d₁ d₀ = compileAExp a₁ ++ compileAExp a₂ ++ [ Ible d₁ d₀ ]
+compile-bexp (NOT b₁) d₁ d₀ = compile-bexp b₁ d₀ d₁
+compile-bexp (AND b₁ b₂) d₁ d₀ =
+  let code₂ = compile-bexp b₂ d₁ d₀ in
+  let code₁ = compile-bexp b₁ 0ℤ (codelen code₂ + d₀) in
+  code₁ ++ code₂
+
+compile-com : Com → Code
+
+compile-com SKIP         = []
+compile-com (ASSIGN x a) = compileAExp a ++ Isetvar x ∷ []
+compile-com (SEQ c₁ c₂)  = compile-com c₁ ++ compile-com c₂
+
+compile-com (IFTHENELSE b ifso ifnot) =
+  let code-ifso = compile-com ifso in
+  let code-ifnot = compile-com ifnot in
+  compile-bexp b 0ℤ (codelen code-ifso + 1ℤ)
+  ++ code-ifso ++ Ibranch (codelen code-ifnot) ∷ code-ifnot
+
+compile-com (WHILE b body) =
+  let code-body = compile-com body in
+  let code-test = compile-bexp b 0ℤ (codelen code-body + 1ℤ) in
+  code-test ++ code-body ++ Ibranch (- (codelen code-test + codelen code-body + 1ℤ)) ∷ []
+
+if-not : ∀ a {A : Set} {b c : A} → (if a then b else c) ≡ (if not a then c else b)
+if-not false = refl
+if-not true  = refl
+
 data CodeAt (C : Code) : ℤ → Code → Set where
   codeAt : ∀ C₁ {C₂ C₃ pc} →
     pc ≡ codelen C₁ →
@@ -248,21 +280,6 @@ compile-aexp-correct {_} {_} (MINUS a₁ a₂) {pc} H =
           ≡⟨ sym (+-assoc (pc + codelen C₁ + codelen C₂) 1ℤ 1ℤ) ⟩
             pc + codelen C₁ + codelen C₂ + 1ℤ + 1ℤ
           ∎) refl))))
-
-compile-bexp : BExp → ℤ → ℤ → Code
-compile-bexp TRUE d₁ _ = if does (d₁ ≟ 0ℤ) then [] else [ Ibranch d₁ ]
-compile-bexp FALSE _ d₀ = if does (d₀ ≟ 0ℤ) then [] else [ Ibranch d₀ ]
-compile-bexp (EQUAL a₁ a₂) d₁ d₀ = compileAExp a₁ ++ compileAExp a₂ ++ [ Ibeq d₁ d₀ ]
-compile-bexp (LESSEQUAL a₁ a₂) d₁ d₀ = compileAExp a₁ ++ compileAExp a₂ ++ [ Ible d₁ d₀ ]
-compile-bexp (NOT b₁) d₁ d₀ = compile-bexp b₁ d₀ d₁
-compile-bexp (AND b₁ b₂) d₁ d₀ =
-  let code₂ = compile-bexp b₂ d₁ d₀ in
-  let code₁ = compile-bexp b₁ 0ℤ (codelen code₂ + d₀) in
-  code₁ ++ code₂
-
-if-not : ∀ a {A : Set} {b c : A} → (if a then b else c) ≡ (if not a then c else b)
-if-not false = refl
-if-not true  = refl
 
 pc-correct : ∀ {C pc pc' σ s} → pc ≡ pc' → Transitions C (pc , σ , s) (pc' , σ , s)
 pc-correct eq = eps' (cong (_, _ , _) eq)
@@ -382,23 +399,6 @@ compile-bexp-correct {s = s} (AND b₁ b₂) {d₁} {d₀} {pc} H with beval b�
               pc + codelen (code₁ ++ code₂) + d₀
             ∎))
 
-compile-com : Com → Code
-
-compile-com SKIP         = []
-compile-com (ASSIGN x a) = compileAExp a ++ Isetvar x ∷ []
-compile-com (SEQ c₁ c₂)  = compile-com c₁ ++ compile-com c₂
-
-compile-com (IFTHENELSE b ifso ifnot) =
-  let code-ifso = compile-com ifso in
-  let code-ifnot = compile-com ifnot in
-  compile-bexp b 0ℤ (codelen code-ifso + 1ℤ)
-  ++ code-ifso ++ Ibranch (codelen code-ifnot) ∷ code-ifnot
-
-compile-com (WHILE b body) =
-  let code-body = compile-com body in
-  let code-test = compile-bexp b 0ℤ (codelen code-body + 1ℤ) in
-  code-test ++ code-body ++ Ibranch (- (codelen code-test + codelen code-body + 1ℤ)) ∷ []
-
 open import Data.Integer.Tactic.RingSolver
 
 compile-com-correct-terminating : ∀ {s c s'} →
@@ -421,9 +421,28 @@ compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {pc = pc} H =
   compile-com-correct-terminating H₂ (codeAtAppRight _ H)) (
   pc-correct (sym (codelenApp' pc (compile-com c₁)))))
 
-compile-com-correct-terminating (ifthenelse b c₁ c₂ Hc) H =
-  star-trans (compile-bexp-correct b (codeAtAppLeft H))
-    (star-trans (compile-com-correct-terminating Hc {!!}) {!!})
+compile-com-correct-terminating (ifthenelse b c₁ c₂ {s} Hc) {pc = pc} H with beval b s in eq
+... | true =
+        let code₁ = compile-com c₁ in
+        let code₂ = compile-com c₂ in
+        let code₀ = compile-bexp b 0ℤ (codelen code₁ + 1ℤ) in star-trans (
+        compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
+        compile-com-correct-terminating Hc
+          (Eq.subst (λ x → CodeAt _ x code₁)
+            (sym (trans (cong (λ b → pc + codelen code₀ + (if b then _ else _)) eq) (+-identityʳ _))) (codeAtAppRight2 code₀ H))) (one (
+        branch {d = codelen code₂} (codeAtHead (codeAtAppRight' code₁ (codeAtAppRight code₀ H) (simpl (pc + codelen code₀) (codelen code₁) (cong (λ b → if b then _ else _) eq)))) {!!})))
+        where
+          simpl : ∀ a {b} c → b ≡ 0ℤ → a + b + c ≡ a + c
+          simpl a {b} c eq = begin
+            a + b + c ≡⟨ cong (λ b → a + b + c) eq ⟩ a + 0ℤ + c ≡⟨ cong (_+ c) (+-identityʳ a) ⟩ a + c ∎
+... | false =
+        let code₁ = compile-com c₁ in
+        let code₂ = compile-com c₂ in
+        let code₀ = compile-bexp b 0ℤ (codelen code₁ + 1ℤ) in star-trans (
+        compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
+        compile-com-correct-terminating Hc
+          (Eq.subst (λ x → CodeAt _ x code₂) {!!} (codeAtTail (codeAtAppRight code₁ (codeAtAppRight code₀ H))))) (
+        pc-correct {!!}))
 
 compile-com-correct-terminating (while-done b c Hb) {pc = pc} H =
   let codec = compile-com c in
