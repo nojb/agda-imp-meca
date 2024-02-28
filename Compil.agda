@@ -8,9 +8,10 @@ open import Data.Bool using (true; false; not; Bool; if_then_else_; T)
 open import Relation.Nullary.Decidable using (⌊_⌋; True; toWitness; fromWitness)
 import Data.Nat
 import Data.List.Relation.Unary.All using (All; []; _∷_)
-import Data.List.Properties using (length-++; ++-assoc)
+open import Data.List.Properties using (length-++; ++-assoc; ++-identityʳ)
 open import Data.Integer.Properties using (+-assoc; suc-pred; pred-suc; suc-+; +-identityʳ; +-identityˡ; +-comm)
 open import Function using (_∘_)
+open import Data.Product using (_×_)
 
 data Instr : Set where
   Iconst : (n : ℤ) → Instr
@@ -203,11 +204,11 @@ codeAtTail {_} {pc} {i} {C'} (codeAt C₁ Hpc HC) =
     ≡⟨ sym (codelenApp C₁) ⟩
       codelen (C₁ ++ [ i ])
     ∎)
-    (trans HC (sym (Data.List.Properties.++-assoc C₁ _ _)))
+    (trans HC (sym (++-assoc C₁ _ _)))
 
 codeAtAppLeft : ∀ {C C₁ C₂ pc} → CodeAt C pc (C₁ ++ C₂) → CodeAt C pc C₁
 codeAtAppLeft {_} {C₁} {C₂} {_} (codeAt C₀ {_} {C₃} Hpc HC) =
-  codeAt C₀ Hpc (trans HC (cong (_++_ C₀) (Data.List.Properties.++-assoc C₁ C₂ C₃)))
+  codeAt C₀ Hpc (trans HC (cong (_++_ C₀) (++-assoc C₁ C₂ C₃)))
 
 codeAtAppRight : ∀ {C} C₁ {C₂} {pc} → CodeAt C pc (C₁ ++ C₂) → CodeAt C (pc + codelen C₁) C₂
 codeAtAppRight {C} C₁ {C₂} {pc} (codeAt C₀ {_} {C₃} Hpc HC) =
@@ -227,9 +228,9 @@ codeAtAppRight {C} C₁ {C₂} {pc} (codeAt C₀ {_} {C₃} Hpc HC) =
         C
       ≡⟨ HC ⟩
         C₀ ++ (C₁ ++ C₂) ++ C₃
-      ≡⟨ cong (_++_ C₀) (Data.List.Properties.++-assoc C₁ C₂ C₃) ⟩
+      ≡⟨ cong (_++_ C₀) (++-assoc C₁ C₂ C₃) ⟩
         C₀ ++ (C₁ ++ C₂ ++ C₃)
-      ≡⟨ sym (Data.List.Properties.++-assoc C₀ C₁ (C₂ ++ C₃)) ⟩
+      ≡⟨ sym (++-assoc C₀ C₁ (C₂ ++ C₃)) ⟩
         (C₀ ++ C₁) ++ C₂ ++ C₃
       ∎
 
@@ -463,8 +464,7 @@ compile-com-correct-terminating {s = s} (ifthenelse b c₁ c₂ {s} Hc) {pc = pc
 
 compile-com-correct-terminating (while-done b c Hb) {pc = pc} H =
   let codec = compile-com c in
-  let codeb = compile-bexp b 0ℤ (codelen codec + 1ℤ) in
-  star-trans (
+  let codeb = compile-bexp b 0ℤ (codelen codec + 1ℤ) in star-trans (
   compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
   pc-correct (cong (λ b → pc + codelen codeb + (if b then _ else _)) Hb)) (
   pc-correct (trans (+-assoc pc (codelen codeb) _) (begin
@@ -489,3 +489,25 @@ compile-com-correct-terminating (while-loop b c Hb Hc Hwhile) {pc = pc} H =
   compile-com-correct-terminating Hwhile H))))) where
   simpl : ∀ a b c d → a ≡ a + b + c + d + - (b + c + d)
   simpl = solve-∀
+
+-- (** L'exécution démarre avec [pc = 0] et une pile vide.
+--     Elle s'arrête avec succès quand [pc] pointe sur une instruction [Ihalt]
+--     et la pile est vide. *)
+
+data Terminates (C : Code) : Store → Store → Set where
+  terminates : ∀ {pc s₀ s₁} →
+    Transitions C (0ℤ , [] , s₀) (pc , [] , s₁) × InstrAt C pc Ihalt →
+    Terminates C s₀ s₁
+
+compile-program : Com → Code
+compile-program c = compile-com c ++ [ Ihalt ]
+
+compile-program-terminating : ∀ {s c s'} →
+  c / s ⇓ s' →
+  Terminates (compile-program c) s s'
+
+compile-program-terminating {c = c} H =
+  terminates (
+    compile-com-correct-terminating H (codeAtAppLeft (codeAt [] refl (sym (++-identityʳ _)))) Data.Product.,
+    codeAtHead (codeAtAppRight (compile-com c) (codeAt [] refl (sym (++-identityʳ _))))
+  )
