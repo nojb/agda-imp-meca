@@ -427,38 +427,6 @@ compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {pc = pc} H =
   compile-com-correct-terminating H₂ (codeAtAppRight _ H)) (
   pc-correct (sym (codelenApp' pc (compile-com c₁)))))
 
--- compile-com-correct-terminating {s = s} (ifthenelse b c₁ c₂ {s} Hc) {pc = pc} {σ = σ} H with beval b s in eq
--- ... | true =
---         let code₁ = compile-com c₁ in
---         let code₂ = compile-com c₂ in
---         let code₀ = compile-bexp b 0ℤ (codelen code₁ + 1ℤ) in star-trans (
---         compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
---         compile-com-correct-terminating Hc
---           (Eq.subst (λ x → CodeAt _ x code₁)
---             (sym (trans (cong (λ b → pc + codelen code₀ + (if b then _ else _)) eq) (+-identityʳ _))) (codeAtAppRight2 code₀ H))) (one (
---         branch {d = codelen code₂} (codeAtHead (codeAtAppRight' code₁ (codeAtAppRight code₀ H) (simpl (pc + codelen code₀) (codelen code₁) (cong (λ b → if b then _ else _) eq)))) {!!})))
---         where
---           simpl : ∀ a {b} c → b ≡ 0ℤ → a + b + c ≡ a + c
---           simpl a {b} c eq = begin
---             a + b + c ≡⟨ cong (λ b → a + b + c) eq ⟩ a + 0ℤ + c ≡⟨ cong (_+ c) (+-identityʳ a) ⟩ a + c ∎
--- ... | false with compile-bexp-correct {s = s} b {σ = σ} (codeAtAppLeft H)
--- ... | b-correct rewrite eq =
---         let code₁ = compile-com c₁ in
---         let code₂ = compile-com c₂ in
---         let code₀ = compile-bexp b 0ℤ (codelen code₁ + 1ℤ) in star-trans
---         b-correct (star-trans (
---         compile-com-correct-terminating Hc (codeAtTail (codeAtAppRight code₁ (codeAtAppRight code₀ {!H!})))) {!!})
---         -- compile-bexp-correct b (codeAtAppLeft H))
---         --   (Eq.subst
---         --     (λ b →
---         --        Transitions _ ((pc + codelen code₀ + (if b then _ else _)) , _ , _)
---         --        ((pc + codelen (code₀ ++ code₁ ++ _ ∷ code₂)) , _ , _))
---         --     eq {!!})
---         -- (star-trans (
---         -- compile-com-correct-terminating Hc
---         --   (Eq.subst (λ x → CodeAt _ x code₂) {!!} (codeAtTail (codeAtAppRight code₁ (codeAtAppRight code₀ H))))) (
---         -- pc-correct {!!}))
-
 compile-com-correct-terminating {s = s} (ifthenelse b c₁ c₂ {s} Hc) {pc = pc} {σ = σ} H with beval b s | compile-bexp-correct {s = s} b {σ = σ} (codeAtAppLeft H)
 ... | true | b-correct =
         let code₁ = compile-com c₁ in
