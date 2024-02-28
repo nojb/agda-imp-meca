@@ -318,15 +318,15 @@ compile-bexp-correct (LESSEQUAL a₁ a₂) {pc = pc} H =
   compile-aexp-correct a₁ (codeAtAppLeft H) -→
   compile-aexp-correct a₂ (codeAtAppRight2 code₁ H) -→
   one (ble (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
-  (cong (λ x → x + _)
-    (begin
-      pc + codelen(code₁ ++ code₂ ++ [ _ ])
-    ≡⟨ codelenApp' pc code₁ ⟩
-      pc + codelen code₁ + codelen(code₂ ++ [ _ ])
-    ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
-      pc + codelen code₁ + codelen code₂ + 1ℤ
-    ∎
-    )))
+      (cong (λ x → x + _)
+        (begin
+          pc + codelen(code₁ ++ code₂ ++ [ _ ])
+        ≡⟨ codelenApp' pc code₁ ⟩
+          pc + codelen code₁ + codelen(code₂ ++ [ _ ])
+        ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
+          pc + codelen code₁ + codelen code₂ + 1ℤ
+        ∎
+        )))
 
 compile-bexp-correct {s = s} (NOT b) {d₁} {d₀} {pc} H =
   compile-bexp-correct b {d₀} {d₁} H -→
