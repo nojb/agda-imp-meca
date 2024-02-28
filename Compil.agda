@@ -401,12 +401,6 @@ compile-bexp-correct {s = s} (AND b₁ b₂) {d₁} {d₀} {pc} H with beval b�
 
 open import Data.Integer.Tactic.RingSolver
 
--- P b =
---   Transitions C
---     ((pc + codelen code₀ + (if beval b s then +0 else codelen code₁ + + 1)) , σ , s)
---     ((pc + codelen (code₀ ++ code₁ ++ Ibranch (codelen code₂) ∷ code₂)) , σ , s')
-
-
 compile-com-correct-terminating : ∀ {s c s'} →
   c / s ⇓ s' →
   ∀ {C pc σ} →
