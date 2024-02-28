@@ -376,7 +376,7 @@ compile-bexp-correct {s = s} (AND b₁ b₂) {d₁} {d₀} {pc} H with beval b�
 open import Data.Integer.Tactic.RingSolver
 
 compile-com-correct-terminating : ∀ {s c s'} →
-  c / s ⇓ s' →
+  s -[ c ]→ s' →
   ∀ {C pc σ} →
     CodeAt C pc (compile-com c) →
     Transitions C (pc , σ , s) ((pc + codelen (compile-com c)) , σ , s')
@@ -470,7 +470,7 @@ compile-program : Com → Code
 compile-program c = compile-com c ++ [ Ihalt ]
 
 compile-program-terminating : ∀ {s c s'} →
-  c / s ⇓ s' →
+  s -[ c ]→ s' →
   Terminates (compile-program c) s s'
 
 compile-program-terminating {c = c} H =

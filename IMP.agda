@@ -99,26 +99,29 @@ data Com : Set where
 update : Id → ℤ → Store → Store
 update x v s = λ y → if does (Data.String._≟_ x y) then v else s y
 
-data _/_⇓_ : Com → Store → Store → Set where
+data _-[_]→_ : Store → Com → Store → Set where
   skip : ∀ {s} →
-    SKIP / s ⇓ s
+    s -[ SKIP ]→ s
   assign : ∀ {s} x a →
-    ASSIGN x a / s ⇓ update x (aeval a s) s
+    s -[ ASSIGN x a ]→ update x (aeval a s) s
   seq : ∀ c₁ c₂ {s s' s''} →
-    c₁ / s ⇓ s' →
-    c₂ / s' ⇓ s'' →
-    SEQ c₁ c₂ / s ⇓ s''
+    s -[ c₁ ]→ s' →
+    s' -[ c₂ ]→ s'' →
+    s -[ SEQ c₁ c₂ ]→ s''
   ifthenelse : ∀ b c₁ c₂ {s s'} →
-    (if beval b s then c₁ else c₂) / s ⇓ s' →
-    IFTHENELSE b c₁ c₂ / s ⇓ s'
+    s -[ if beval b s then c₁ else c₂ ]→ s' →
+    s -[ IFTHENELSE b c₁ c₂ ]→ s'
   while-done : ∀ b c {s} →
     beval b s ≡ false →
-    WHILE b c / s ⇓ s
+    s -[ WHILE b c ]→ s
   while-loop : ∀ b c {s s' s''} →
     beval b s ≡ true →
-    c / s ⇓ s' →
-    WHILE b c / s' ⇓ s'' →
-    WHILE b c / s ⇓ s''
+    s  -[ c ]→ s' →
+    s' -[ WHILE b c ]→ s'' →
+    s -[ WHILE b c ]→ s''
+
+infinite-loop : ∀ s s' → ¬ s -[ WHILE TRUE SKIP ]→ s'
+infinite-loop s s' (while-loop _ _ _ skip H₁) = infinite-loop s s' H₁
 
 record Gas : Set where
   constructor gas
