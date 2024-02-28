@@ -17,8 +17,8 @@ Id = String
 data AExp : Set where
   CONST : ℤ → AExp
   VAR : (x : Id) → AExp
-  PLUS : (a1 a2 : AExp) → AExp
-  MINUS : (a1 a2 : AExp) → AExp
+  PLUS : (a₁ a₂ : AExp) → AExp
+  MINUS : (a₁ a₂ : AExp) → AExp
 
 Store : Set
 Store = Id → ℤ
@@ -26,67 +26,67 @@ Store = Id → ℤ
 aeval : AExp → Store → ℤ
 aeval (CONST n) _ = n
 aeval (VAR x) s  = s x
-aeval (PLUS a1 a2) s = aeval a1 s + aeval a2 s
-aeval (MINUS a1 a2) s = aeval a1 s - aeval a2 s
+aeval (PLUS a₁ a₂) s = aeval a₁ s + aeval a₂ s
+aeval (MINUS a₁ a₂) s = aeval a₁ s - aeval a₂ s
 
 data FreeVar (x : Id) : AExp -> Set where
   free-var : FreeVar x (VAR x)
-  free-plus : ∀ a1 a2 → FreeVar x a1 ⊎ FreeVar x a2 → FreeVar x (PLUS a1 a2)
-  free-minus : ∀ a1 a2 → FreeVar x a1 ⊎ FreeVar x a2 → FreeVar x (MINUS a1 a2)
+  free-plus : ∀ a₁ a₂ → FreeVar x a₁ ⊎ FreeVar x a₂ → FreeVar x (PLUS a₁ a₂)
+  free-minus : ∀ a₁ a₂ → FreeVar x a₁ ⊎ FreeVar x a₂ → FreeVar x (MINUS a₁ a₂)
 
-aeval-free : ∀ {s1 s2} a → (∀ x → FreeVar x a → s1 x ≡ s2 x) → aeval a s1 ≡ aeval a s2
+aeval-free : ∀ {s₁ s₂} a → (∀ x → FreeVar x a → s₁ x ≡ s₂ x) → aeval a s₁ ≡ aeval a s₂
 aeval-free (CONST _) _ = refl
 aeval-free (VAR x) H = H x free-var
-aeval-free (PLUS a1 a2) H =
-  cong₂ _+_ (aeval-free a1 (λ x F → H x (free-plus a1 a2 (inj₁ F)))) (aeval-free a2 λ x z → H x (free-plus a1 a2 (inj₂ z)))
-aeval-free (MINUS a1 a2) H =
-  cong₂ _-_ (aeval-free a1 (λ x F → H x (free-minus a1 a2 (inj₁ F)))) (aeval-free a2 λ x z → H x (free-minus a1 a2 (inj₂ z)))
+aeval-free (PLUS a₁ a₂) H =
+  cong₂ _+_ (aeval-free a₁ (λ x F → H x (free-plus a₁ a₂ (inj₁ F)))) (aeval-free a₂ λ x z → H x (free-plus a₁ a₂ (inj₂ z)))
+aeval-free (MINUS a₁ a₂) H =
+  cong₂ _-_ (aeval-free a₁ (λ x F → H x (free-minus a₁ a₂ (inj₁ F)))) (aeval-free a₂ λ x z → H x (free-minus a₁ a₂ (inj₂ z)))
 
 data BExp : Set where
   TRUE : BExp
   FALSE : BExp
-  EQUAL : (a1 a2 : AExp) → BExp
-  LESSEQUAL : (a1 a2 : AExp) → BExp
-  NOT : (b1 : BExp) → BExp
-  AND : (b1 b2 : BExp) → BExp
+  EQUAL : (a₁ a₂ : AExp) → BExp
+  LESSEQUAL : (a₁ a₂ : AExp) → BExp
+  NOT : (b₁ : BExp) → BExp
+  AND : (b₁ b₂ : BExp) → BExp
 
 beval : BExp -> Store -> Bool
 beval TRUE _ = true
 beval FALSE _ = false
-beval (EQUAL a1 a2) s = does (aeval a1 s ≟ aeval a2 s)
-beval (LESSEQUAL a1 a2) s = does (aeval a1 s ≤? aeval a2 s)
-beval (NOT b1) s = not (beval b1 s)
-beval (AND b1 b2) s = beval b1 s ∧ beval b2 s
+beval (EQUAL a₁ a₂) s = does (aeval a₁ s ≟ aeval a₂ s)
+beval (LESSEQUAL a₁ a₂) s = does (aeval a₁ s ≤? aeval a₂ s)
+beval (NOT b₁) s = not (beval b₁ s)
+beval (AND b₁ b₂) s = beval b₁ s ∧ beval b₂ s
 
 NOTEQUAL : AExp → AExp → BExp
-NOTEQUAL a1 a2 = NOT (EQUAL a1 a2)
+NOTEQUAL a₁ a₂ = NOT (EQUAL a₁ a₂)
 
 GREATEREQUAL : AExp → AExp → BExp
-GREATEREQUAL a1 a2 = LESSEQUAL a2 a1
+GREATEREQUAL a₁ a₂ = LESSEQUAL a₂ a₁
 
 GREATER : AExp → AExp → BExp
-GREATER a1 a2 = NOT (LESSEQUAL a1 a2)
+GREATER a₁ a₂ = NOT (LESSEQUAL a₁ a₂)
 
 LESS : AExp → AExp → BExp
-LESS a1 a2 = GREATER a2 a1
+LESS a₁ a₂ = GREATER a₂ a₁
 
 OR : BExp → BExp → BExp
-OR b1 b2 = NOT (AND (NOT b1) (NOT b2))
+OR b₁ b₂ = NOT (AND (NOT b₁) (NOT b₂))
 
-not-distrib : ∀ b1 b2 → not b1 ∧ not b2 ≡ not (b1 ∨ b2)
+not-distrib : ∀ b₁ b₂ → not b₁ ∧ not b₂ ≡ not (b₁ ∨ b₂)
 not-distrib false _ = refl
 not-distrib true _ = refl
 
-beval_OR : ∀ s b1 b2 → beval (OR b1 b2) s ≡ beval b1 s ∨ beval b2 s
-beval_OR s b1 b2 =
+beval_OR : ∀ s b₁ b₂ → beval (OR b₁ b₂) s ≡ beval b₁ s ∨ beval b₂ s
+beval_OR s b₁ b₂ =
   begin
-    beval (OR b1 b2) s
+    beval (OR b₁ b₂) s
   ≡⟨⟩
-    not (not (beval b1 s) ∧ not (beval b2 s))
-  ≡⟨ cong not (not-distrib (beval b1 s) (beval b2 s)) ⟩
-    not (not (beval b1 s ∨ beval b2 s))
+    not (not (beval b₁ s) ∧ not (beval b₂ s))
+  ≡⟨ cong not (not-distrib (beval b₁ s) (beval b₂ s)) ⟩
+    not (not (beval b₁ s ∨ beval b₂ s))
   ≡⟨ not-involutive _ ⟩
-    beval b1 s ∨ beval b2 s
+    beval b₁ s ∨ beval b₂ s
   ∎
 
 data Com : Set where
