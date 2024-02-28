@@ -7,9 +7,9 @@ open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
 open import Data.Sum
 open import Data.Bool using (true; false; not; Bool; _∧_; _∨_; if_then_else_)
 open import Data.Bool.Properties using (not-involutive)
-open import Relation.Nullary public
+open import Relation.Nullary
 open import Data.Nat using (ℕ)
-open import Data.Integer public
+open import Data.Integer
 
 Id : Set
 Id = String
@@ -28,9 +28,6 @@ aeval (CONST n) _ = n
 aeval (VAR x) s  = s x
 aeval (PLUS a1 a2) s = aeval a1 s + aeval a2 s
 aeval (MINUS a1 a2) s = aeval a1 s - aeval a2 s
-
--- _ = aeval (PLUS (VAR "x") (MINUS (VAR "x") (CONST (+ 1)))) (λ _ → + 2) ≡ + 3
--- _ = {!!}
 
 data FreeVar (x : Id) : AExp -> Set where
   free-var : FreeVar x (VAR x)

@@ -2,16 +2,15 @@ open import IMP
 open import Data.List as List
 open import Data.Maybe
 import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl; cong; cong₂; sym; trans; inspect)
+open Eq using (_≡_; refl; cong; sym; trans)
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
-open import Data.Bool using (true; false; not; Bool; if_then_else_; T)
-open import Relation.Nullary.Decidable using (⌊_⌋; True; toWitness; fromWitness)
+open import Data.Bool using (true; false; not; Bool; if_then_else_)
 import Data.Nat
-import Data.List.Relation.Unary.All using (All; []; _∷_)
-open import Data.List.Properties using (length-++; ++-assoc; ++-identityʳ)
+import Data.List.Relation.Unary.All using ([]; _∷_)
+open import Data.List.Properties using (++-assoc; ++-identityʳ)
 open import Data.Integer.Properties using (+-assoc; suc-pred; pred-suc; suc-+; +-identityʳ; +-identityˡ; +-comm)
-open import Function using (_∘_)
-open import Data.Product using (_×_)
+open import Data.Integer
+open import Relation.Nullary
 
 data Instr : Set where
   Iconst : (n : ℤ) → Instr
@@ -101,7 +100,7 @@ setvar' : ∀ {C pc σ s x n pc'} →
 setvar' H Hpc rewrite Hpc = setvar H
 
 data Transitions (C : Code) : Config → Config → Set where
-  one : ∀ {c₁ c₂} →
+  return : ∀ {c₁ c₂} →
     Transition C c₁ c₂ →
     Transitions C c₁ c₂
   eps : ∀ {c} →
@@ -246,31 +245,31 @@ compile-aexp-correct : ∀ {C} {s} a {pc} {σ} →
   CodeAt C pc (compile-aexp a) →
   Transitions C (pc , σ , s) ((pc + codelen (compile-aexp a)) , aeval a s ∷ σ , s)
 
-compile-aexp-correct (CONST _) H = one (const (codeAtHead H))
+compile-aexp-correct (CONST _) H = return (const (codeAtHead H))
 
-compile-aexp-correct (VAR _) H = one (var (codeAtHead H))
+compile-aexp-correct (VAR _) H = return (var (codeAtHead H))
 
 compile-aexp-correct (PLUS a₁ a₂) {pc} H =
   let code₁ = compile-aexp a₁ in
   let code₂ = compile-aexp a₂ in
   compile-aexp-correct a₁ (codeAtAppLeft H) -→
   compile-aexp-correct a₂ (codeAtAppRight2 code₁ H) -→
-  one (add' (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
-        (begin
-            pc + codelen (code₁ ++ code₂ ++ _)
-          ≡⟨ codelenApp' pc code₁ ⟩
-            pc + codelen code₁ + codelen (code₂ ++ _)
-          ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
-            pc + codelen code₁ + codelen code₂ + 1ℤ
-          ∎) refl)
+  return (add' (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
+       (begin
+           pc + codelen (code₁ ++ code₂ ++ _)
+         ≡⟨ codelenApp' pc code₁ ⟩
+           pc + codelen code₁ + codelen (code₂ ++ _)
+         ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
+           pc + codelen code₁ + codelen code₂ + 1ℤ
+         ∎) refl)
 
 compile-aexp-correct (MINUS a₁ a₂) {pc} H =
   let C₁ = compile-aexp a₁ in
   let C₂ = compile-aexp a₂ in
   compile-aexp-correct a₁ (codeAtAppLeft H) -→
   compile-aexp-correct a₂ (codeAtAppLeft (codeAtAppRight C₁ H)) -→
-  one (opp' (codeAtHead (codeAtAppRight C₂ (codeAtAppRight C₁ H))) refl refl) -→
-  one (add' (codeAtHead (codeAtTail (codeAtAppRight C₂ (codeAtAppRight C₁ H))))
+  return (opp' (codeAtHead (codeAtAppRight C₂ (codeAtAppRight C₁ H))) refl refl) -→
+  return (add' (codeAtHead (codeAtTail (codeAtAppRight C₂ (codeAtAppRight C₁ H))))
     (begin
       pc + codelen (C₁ ++ C₂ ++ _)
     ≡⟨ codelenApp' pc C₁ ⟩
@@ -292,32 +291,32 @@ compile-bexp-correct : ∀ {C s} b {d₁ d₀ pc σ} →
 
 compile-bexp-correct TRUE {d₁ = d₁} {pc = pc} H with d₁ ≟ 0ℤ
 ...  | yes p rewrite p | +-identityʳ pc | +-identityʳ pc = eps
-...  | no _ = one (branch (codeAtHead H) refl)
+...  | no _ = return (branch (codeAtHead H) refl)
 
 compile-bexp-correct FALSE {d₀ = d₀} {pc = pc} H with d₀ ≟ 0ℤ
 ...  | yes p rewrite p | +-identityʳ pc | +-identityʳ pc = eps
-...  | no _  = one (branch (codeAtHead H) refl)
+...  | no _  = return (branch (codeAtHead H) refl)
 
 compile-bexp-correct (EQUAL a₁ a₂) {pc = pc} H =
   let code₁ = compile-aexp a₁ in
   let code₂ = compile-aexp a₂ in
   compile-aexp-correct a₁ (codeAtAppLeft H) -→
   compile-aexp-correct a₂ (codeAtAppRight2 code₁ H) -→
-  one (beq (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
-  (cong (λ x → x + _) (begin
-    pc + codelen(code₁ ++ code₂ ++ [ _ ])
-  ≡⟨ codelenApp' pc code₁ ⟩
-    pc + codelen code₁ + codelen(code₂ ++ [ _ ])
-  ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
-    pc + codelen code₁ + codelen code₂ + 1ℤ
-  ∎)))
+  return (beq (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
+    (cong (λ x → x + _) (begin
+      pc + codelen(code₁ ++ code₂ ++ [ _ ])
+    ≡⟨ codelenApp' pc code₁ ⟩
+      pc + codelen code₁ + codelen(code₂ ++ [ _ ])
+    ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
+      pc + codelen code₁ + codelen code₂ + 1ℤ
+    ∎)))
 
 compile-bexp-correct (LESSEQUAL a₁ a₂) {pc = pc} H =
   let code₁ = compile-aexp a₁ in
   let code₂ = compile-aexp a₂ in
   compile-aexp-correct a₁ (codeAtAppLeft H) -→
   compile-aexp-correct a₂ (codeAtAppRight2 code₁ H) -→
-  one (ble (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
+  return (ble (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
       (cong (λ x → x + _)
         (begin
           pc + codelen(code₁ ++ code₂ ++ [ _ ])
@@ -387,7 +386,7 @@ compile-com-correct-terminating skip _ =
 
 compile-com-correct-terminating (assign x a) {pc = pc} H =
   compile-aexp-correct a (codeAtAppLeft H) -→
-  one (setvar' (codeAtHead (codeAtAppRight _ H)) (codelenApp' pc (compile-aexp a)))
+  return (setvar' (codeAtHead (codeAtAppRight _ H)) (codelenApp' pc (compile-aexp a)))
 
 compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {pc = pc} H =
   compile-com-correct-terminating H₁ (codeAtAppLeft H) -→
@@ -402,16 +401,16 @@ compile-com-correct-terminating {s = s} (ifthenelse b c₁ c₂ {s} Hc) {pc = pc
         b-correct -→
         pc-correct (+-identityʳ (pc + codelen code₀)) -→
         compile-com-correct-terminating Hc (codeAtAppRight2 code₀ H) -→
-        one (branch {d = codelen code₂} (codeAtHead (codeAtAppRight' code₁ (codeAtAppRight code₀ H) refl))
-        (begin
-          pc + codelen (code₀ ++ code₁ ++ Ibranch _ ∷ code₂)
-        ≡⟨ codelenApp' pc code₀ ⟩
-          pc + codelen code₀ + codelen (code₁ ++ Ibranch _ ∷ code₂)
-        ≡⟨ codelenApp' (pc + codelen code₀) code₁ ⟩
-          pc + codelen code₀ + codelen code₁ + (1ℤ + codelen code₂)
-        ≡⟨ sym (+-assoc (pc + codelen code₀ + codelen code₁) 1ℤ (codelen code₂)) ⟩
-          pc + codelen code₀ + codelen code₁ + 1ℤ + codelen code₂
-        ∎))
+        return (branch {d = codelen code₂} (codeAtHead (codeAtAppRight' code₁ (codeAtAppRight code₀ H) refl))
+          (begin
+            pc + codelen (code₀ ++ code₁ ++ Ibranch _ ∷ code₂)
+          ≡⟨ codelenApp' pc code₀ ⟩
+            pc + codelen code₀ + codelen (code₁ ++ Ibranch _ ∷ code₂)
+          ≡⟨ codelenApp' (pc + codelen code₀) code₁ ⟩
+            pc + codelen code₀ + codelen code₁ + (1ℤ + codelen code₂)
+          ≡⟨ sym (+-assoc (pc + codelen code₀ + codelen code₁) 1ℤ (codelen code₂)) ⟩
+            pc + codelen code₀ + codelen code₁ + 1ℤ + codelen code₂
+          ∎))
 ... | false | b-correct =
         let code₁ = compile-com c₁ in
         let code₂ = compile-com c₂ in
@@ -440,14 +439,14 @@ compile-com-correct-terminating (while-done b c Hb) {pc = pc} H =
   compile-bexp-correct b (codeAtAppLeft H) -→
   pc-correct (cong (λ b → pc + codelen codeb + (if b then _ else _)) Hb) -→
   pc-correct (trans (+-assoc pc (codelen codeb) _) (begin
-    pc + (codelen codeb + (codelen codec + 1ℤ))
-  ≡⟨ sym (+-assoc pc (codelen codeb) (codelen codec + 1ℤ)) ⟩
-    pc + codelen codeb + (codelen codec + 1ℤ)
-  ≡⟨ cong (_+_ (pc + codelen codeb)) (sym (codelenApp codec)) ⟩
-    pc + codelen codeb + codelen (codec ++ Ibranch _ ∷ [])
-  ≡⟨ sym (codelenApp' pc codeb) ⟩
-    pc + codelen (codeb ++ codec ++ Ibranch _ ∷ [])
-  ∎))
+      pc + (codelen codeb + (codelen codec + 1ℤ))
+    ≡⟨ sym (+-assoc pc (codelen codeb) (codelen codec + 1ℤ)) ⟩
+      pc + codelen codeb + (codelen codec + 1ℤ)
+    ≡⟨ cong (_+_ (pc + codelen codeb)) (sym (codelenApp codec)) ⟩
+      pc + codelen codeb + codelen (codec ++ Ibranch _ ∷ [])
+    ≡⟨ sym (codelenApp' pc codeb) ⟩
+      pc + codelen (codeb ++ codec ++ Ibranch _ ∷ [])
+    ∎))
 
 compile-com-correct-terminating (while-loop b c Hb Hc Hwhile) {pc = pc} H =
   let codec = compile-com c in
@@ -456,7 +455,7 @@ compile-com-correct-terminating (while-loop b c Hb Hc Hwhile) {pc = pc} H =
   pc-correct (cong (λ b → pc + codelen codeb + (if b then _ else _)) Hb) -→
   pc-correct (+-identityʳ (pc + codelen codeb)) -→
   compile-com-correct-terminating Hc (codeAtAppRight2 codeb H) -→
-  one (branch (codeAtHead (codeAtAppRight codec (codeAtAppRight codeb H))) (simpl pc (codelen codeb) (codelen codec) 1ℤ)) -→
+  return (branch (codeAtHead (codeAtAppRight codec (codeAtAppRight codeb H))) (simpl pc (codelen codeb) (codelen codec) 1ℤ)) -→
   compile-com-correct-terminating Hwhile H where
   simpl : ∀ a b c d → a ≡ a + b + c + d + - (b + c + d)
   simpl = solve-∀
