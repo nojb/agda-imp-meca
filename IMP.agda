@@ -121,7 +121,7 @@ data _/_⇓_ : Com → Store → Store → Set where
     beval b s ≡ true →
     c / s ⇓ s' →
     WHILE b c / s' ⇓ s'' →
-    WHILE b c / s' ⇓ s''
+    WHILE b c / s ⇓ s''
 
 record Gas : Set where
   constructor gas

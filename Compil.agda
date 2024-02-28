@@ -27,17 +27,22 @@ Code : Set
 Code = List Instr
 
 codelen : Code → ℤ
-codelen C = + (List.length C)
+codelen [] = 0ℤ
+codelen (_ ∷ C) = suc (codelen C)
 
-codelenApp : ∀ n C₁ {C₂} → n + codelen (C₁ ++ C₂) ≡ n + codelen C₁ + codelen C₂
-codelenApp n C₁ {C₂} =
+codelenApp : ∀ C₁ {C₂} → codelen (C₁ ++ C₂) ≡ codelen C₁ + codelen C₂
+codelenApp [] {C₂} = sym (+-identityˡ (codelen C₂))
+codelenApp (x ∷ C) {C₂} =
   begin
-    n + codelen (C₁ ++ C₂)
-  ≡⟨ cong (_+_ n) (cong +_ (Data.List.Properties.length-++ C₁ {C₂})) ⟩
-    n + (codelen C₁ + codelen C₂)
-  ≡⟨ sym (+-assoc n (codelen C₁) (codelen C₂)) ⟩
-    n + codelen C₁ + codelen C₂
+    suc (codelen (C ++ C₂))
+  ≡⟨ cong suc (codelenApp C) ⟩
+    suc (codelen C + codelen C₂)
+  ≡⟨ sym (+-assoc 1ℤ (codelen C) _) ⟩
+    suc (codelen C) + codelen C₂
   ∎
+
+codelenApp' : ∀ n C₁ {C₂} → n + codelen (C₁ ++ C₂) ≡ n + codelen C₁ + codelen C₂
+codelenApp' n C₁ = trans (cong (_+_ n) (codelenApp C₁)) (sym (+-assoc n (codelen C₁) _))
 
 data InstrAt : Code → ℤ → Instr → Set where
 
@@ -163,7 +168,7 @@ codeAtTail {_} {pc} {i} {C'} (codeAt C₁ Hpc HC) =
       codelen C₁ + 1ℤ
     ≡⟨ refl ⟩
       codelen C₁ + codelen [ i ]
-    ≡⟨ sym (codelenApp 0ℤ C₁) ⟩
+    ≡⟨ sym (codelenApp C₁) ⟩
       codelen (C₁ ++ [ i ])
     ∎)
     (trans HC (sym (Data.List.Properties.++-assoc C₁ _ _)))
@@ -182,7 +187,7 @@ codeAtAppRight {C} C₁ {C₂} {pc} (codeAt C₀ {_} {C₃} Hpc HC) =
         pc + codelen C₁
       ≡⟨ cong (_+ codelen C₁) Hpc ⟩
         codelen C₀ + codelen C₁
-      ≡⟨ sym (codelenApp 0ℤ C₀) ⟩
+      ≡⟨ sym (codelenApp C₀) ⟩
         codelen (C₀ ++ C₁)
       ∎
     CEq =
@@ -219,9 +224,9 @@ compile-aexp-correct {_} {_} (PLUS a₁ a₂) {pc} H =
         (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
         (begin
             pc + codelen (code₁ ++ code₂ ++ _)
-          ≡⟨ codelenApp pc code₁ ⟩
+          ≡⟨ codelenApp' pc code₁ ⟩
             pc + codelen code₁ + codelen (code₂ ++ _)
-          ≡⟨ codelenApp (pc + codelen code₁) code₂ ⟩
+          ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
             pc + codelen code₁ + codelen code₂ + 1ℤ
           ∎) refl)))
 
@@ -236,9 +241,9 @@ compile-aexp-correct {_} {_} (MINUS a₁ a₂) {pc} H =
           (codeAtHead (codeAtTail (codeAtAppRight C₂ (codeAtAppRight C₁ H))))
           (begin
             pc + codelen (C₁ ++ C₂ ++ _)
-          ≡⟨ codelenApp pc C₁ ⟩
+          ≡⟨ codelenApp' pc C₁ ⟩
             pc + codelen C₁ + codelen (C₂ ++ _)
-          ≡⟨ codelenApp (pc + codelen C₁) C₂ ⟩
+          ≡⟨ codelenApp' (pc + codelen C₁) C₂ ⟩
             pc + codelen C₁ + codelen C₂ + (1ℤ + 1ℤ)
           ≡⟨ sym (+-assoc (pc + codelen C₁ + codelen C₂) 1ℤ 1ℤ) ⟩
             pc + codelen C₁ + codelen C₂ + 1ℤ + 1ℤ
@@ -259,6 +264,9 @@ if-not : ∀ a {A : Set} {b c : A} → (if a then b else c) ≡ (if not a then c
 if-not false = refl
 if-not true  = refl
 
+pc-correct : ∀ {C pc pc' σ s} → pc ≡ pc' → Transitions C (pc , σ , s) (pc' , σ , s)
+pc-correct eq = eps' (cong (_, _ , _) eq)
+
 compile-bexp-correct : ∀ {C s} b {d₁ d₀ pc σ} →
   CodeAt C pc (compile-bexp b d₁ d₀) →
   Transitions C
@@ -266,32 +274,32 @@ compile-bexp-correct : ∀ {C s} b {d₁ d₀ pc σ} →
     ((pc + codelen (compile-bexp b d₁ d₀) + (if beval b s then d₁ else d₀)) , σ , s)
 
 compile-bexp-correct TRUE {d₁ = d₁} {pc = pc} H with d₁ ≟ 0ℤ
-...  | yes p = eps' (cong (_, _ , _)
-                      (begin
-                        pc
-                      ≡⟨ sym (+-identityʳ _) ⟩
-                        pc + 0ℤ
-                      ≡⟨ sym (+-identityˡ _) ⟩
-                        0ℤ + (pc + 0ℤ)
-                      ≡⟨ cong (λ n → n + _) (sym p) ⟩
-                        d₁ + (pc + 0ℤ)
-                      ≡⟨ +-comm d₁ (pc + 0ℤ) ⟩
-                        pc + 0ℤ + d₁ ∎))
+...  | yes p = pc-correct (begin
+                 pc
+               ≡⟨ sym (+-identityʳ _) ⟩
+                 pc + 0ℤ
+               ≡⟨ sym (+-identityˡ _) ⟩
+                 0ℤ + (pc + 0ℤ)
+               ≡⟨ cong (λ n → n + _) (sym p) ⟩
+                 d₁ + (pc + 0ℤ)
+               ≡⟨ +-comm d₁ (pc + 0ℤ) ⟩
+                 pc + 0ℤ + d₁
+               ∎)
 ...  | no _  = one (branch (codeAtHead H) refl)
 
 
 compile-bexp-correct FALSE {d₀ = d₀} {pc = pc} H with d₀ ≟ 0ℤ
-...  | yes p = eps' (cong (_, _ , _)
-                      (begin
-                        pc
-                      ≡⟨ sym (+-identityʳ _) ⟩
-                        pc + 0ℤ
-                      ≡⟨ sym (+-identityˡ _) ⟩
-                        0ℤ + (pc + 0ℤ)
-                      ≡⟨ cong (λ n → n + _) (sym p) ⟩
-                        d₀ + (pc + 0ℤ)
-                      ≡⟨ +-comm d₀ (pc + 0ℤ) ⟩
-                        pc + 0ℤ + d₀ ∎))
+...  | yes p = pc-correct (begin
+                 pc
+               ≡⟨ sym (+-identityʳ _) ⟩
+                 pc + 0ℤ
+               ≡⟨ sym (+-identityˡ _) ⟩
+                 0ℤ + (pc + 0ℤ)
+               ≡⟨ cong (λ n → n + _) (sym p) ⟩
+                 d₀ + (pc + 0ℤ)
+               ≡⟨ +-comm d₀ (pc + 0ℤ) ⟩
+                 pc + 0ℤ + d₀
+               ∎)
 ...  | no _  = one (branch (codeAtHead H) refl)
 
 compile-bexp-correct (EQUAL a₁ a₂) {pc = pc} H =
@@ -301,15 +309,13 @@ compile-bexp-correct (EQUAL a₁ a₂) {pc = pc} H =
   compile-aexp-correct a₁ (codeAtAppLeft H)) (star-trans (
   compile-aexp-correct a₂ (codeAtAppRight2 code₁ H)) (one (
   beq (codeAtHead (codeAtAppRight code₂ (codeAtAppRight code₁ H)))
-  (cong (λ x → x + _)
-    (begin
-      pc + codelen(code₁ ++ code₂ ++ [ _ ])
-    ≡⟨ codelenApp pc code₁ ⟩
-      pc + codelen code₁ + codelen(code₂ ++ [ _ ])
-    ≡⟨ codelenApp (pc + codelen code₁) code₂ ⟩
-      pc + codelen code₁ + codelen code₂ + 1ℤ
-    ∎
-    )))))
+  (cong (λ x → x + _) (begin
+    pc + codelen(code₁ ++ code₂ ++ [ _ ])
+  ≡⟨ codelenApp' pc code₁ ⟩
+    pc + codelen code₁ + codelen(code₂ ++ [ _ ])
+  ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
+    pc + codelen code₁ + codelen code₂ + 1ℤ
+  ∎)))))
 
 compile-bexp-correct (LESSEQUAL a₁ a₂) {pc = pc} H =
   let code₁ = compileAExp a₁ in
@@ -321,9 +327,9 @@ compile-bexp-correct (LESSEQUAL a₁ a₂) {pc = pc} H =
   (cong (λ x → x + _)
     (begin
       pc + codelen(code₁ ++ code₂ ++ [ _ ])
-    ≡⟨ codelenApp pc code₁ ⟩
+    ≡⟨ codelenApp' pc code₁ ⟩
       pc + codelen code₁ + codelen(code₂ ++ [ _ ])
-    ≡⟨ codelenApp (pc + codelen code₁) code₂ ⟩
+    ≡⟨ codelenApp' (pc + codelen code₁) code₂ ⟩
       pc + codelen code₁ + codelen code₂ + 1ℤ
     ∎
     )))))
@@ -346,36 +352,35 @@ compile-bexp-correct {s = s} (AND b₁ b₂) {d₁} {d₀} {pc} H with beval b�
                pc + codelen code₁ + 0ℤ
              ≡⟨ +-identityʳ _ ⟩
                pc + codelen code₁
-             ∎)))) (eps' (
-           cong (_, _ , _)
-             (begin
-               pc + codelen code₁ + (if beval b₁ s then 0ℤ else (codelen code₂ + d₀)) +
-                 codelen code₂ + (if beval b₂ s then d₁ else d₀)
-             ≡⟨ cong
-                 (λ b →
-                    pc + codelen code₁ + (if b then _ else _) + codelen code₂ + _)
-                 eq ⟩
-               pc + codelen code₁ + 0ℤ + codelen code₂ + (if beval b₂ s then d₁ else d₀)
-             ≡⟨ cong (λ n → n + codelen code₂ + (if beval b₂ s then d₁ else d₀)) (+-identityʳ _) ⟩
-               pc + codelen code₁ + codelen code₂ + (if beval b₂ s then d₁ else d₀)
-             ≡⟨ cong (_+ (if beval b₂ s then d₁ else d₀)) (+-assoc pc (codelen code₁) _) ⟩
-               pc + (codelen code₁ + codelen code₂) + (if beval b₂ s then d₁ else d₀)
-             ≡⟨ cong (λ n → pc + n + (if beval b₂ s then d₁ else d₀)) (sym (codelenApp 0ℤ code₁)) ⟩
-               pc + codelen (code₁ ++ code₂) + (if beval b₂ s then d₁ else d₀)
-             ∎))))
+             ∎)))) (
+           pc-correct (begin
+             pc + codelen code₁ + (if beval b₁ s then 0ℤ else (codelen code₂ + d₀)) +
+               codelen code₂ + (if beval b₂ s then d₁ else d₀)
+           ≡⟨ cong
+               (λ b →
+                  pc + codelen code₁ + (if b then _ else _) + codelen code₂ + _)
+               eq ⟩
+             pc + codelen code₁ + 0ℤ + codelen code₂ + (if beval b₂ s then d₁ else d₀)
+           ≡⟨ cong (λ n → n + codelen code₂ + (if beval b₂ s then d₁ else d₀)) (+-identityʳ (pc + codelen code₁)) ⟩
+             pc + codelen code₁ + codelen code₂ + (if beval b₂ s then d₁ else d₀)
+           ≡⟨ cong (_+ (if beval b₂ s then d₁ else d₀)) (+-assoc pc (codelen code₁) _) ⟩
+             pc + (codelen code₁ + codelen code₂) + (if beval b₂ s then d₁ else d₀)
+           ≡⟨ cong (λ n → pc + n + (if beval b₂ s then d₁ else d₀)) (sym (codelenApp code₁)) ⟩
+             pc + codelen (code₁ ++ code₂) + (if beval b₂ s then d₁ else d₀)
+           ∎)))
 ... | false =
             let code₂ = compile-bexp b₂ d₁ d₀ in
             let code₁ = compile-bexp b₁ 0ℤ (codelen code₂ + d₀) in star-trans (
-            compile-bexp-correct b₁ (codeAtAppLeft H)) (eps' (
-            cong (_, _ , _) (begin
+            compile-bexp-correct b₁ (codeAtAppLeft H)) (
+            pc-correct (begin
               pc + codelen code₁ + (if beval b₁ s then 0ℤ else codelen code₂ + d₀)
             ≡⟨ cong (λ b → pc + codelen code₁ + (if b then 0ℤ else codelen code₂ + d₀)) eq ⟩
               pc + codelen code₁ + (codelen code₂ + d₀)
             ≡⟨ sym (+-assoc (pc + codelen code₁) _ _) ⟩
               pc + codelen code₁ + codelen code₂ + d₀
-            ≡⟨ cong (λ n → n + d₀) (sym (codelenApp pc code₁)) ⟩
+            ≡⟨ cong (λ n → n + d₀) (sym (codelenApp' pc code₁)) ⟩
               pc + codelen (code₁ ++ code₂) + d₀
-            ∎)))
+            ∎))
 
 compile-com : Com → Code
 
@@ -394,6 +399,8 @@ compile-com (WHILE b body) =
   let code-test = compile-bexp b 0ℤ (codelen code-body + 1ℤ) in
   code-test ++ code-body ++ Ibranch (- (codelen code-test + codelen code-body + 1ℤ)) ∷ []
 
+open import Data.Integer.Tactic.RingSolver
+
 compile-com-correct-terminating : ∀ {s c s'} →
   c / s ⇓ s' →
   ∀ {C pc σ} →
@@ -401,21 +408,48 @@ compile-com-correct-terminating : ∀ {s c s'} →
     Transitions C (pc , σ , s) ((pc + codelen (compile-com c)) , σ , s')
 
 compile-com-correct-terminating skip _ =
-  eps' (cong (_, _ , _) (sym (+-identityʳ _)))
+  pc-correct (sym (+-identityʳ _))
 
-compile-com-correct-terminating (assign x a) {_} {pc} H =
-  star-trans (compile-aexp-correct a (codeAtAppLeft H))
-    (one (setvar' (codeAtHead (codeAtAppRight _ H)) (codelenApp pc (compileAExp a))))
+compile-com-correct-terminating (assign x a) {pc = pc} H =
+  star-trans (
+  compile-aexp-correct a (codeAtAppLeft H)) (one (
+  setvar' (codeAtHead (codeAtAppRight _ H)) (codelenApp' pc (compileAExp a))))
 
-compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {_} {pc} H =
-  star-trans (compile-com-correct-terminating H₁ (codeAtAppLeft H))
-    (star-trans (compile-com-correct-terminating H₂ (codeAtAppRight _ H))
-      (eps' (cong (_, _ , _) (sym (codelenApp pc (compile-com c₁))))))
+compile-com-correct-terminating (seq c₁ c₂ H₁ H₂) {pc = pc} H =
+  star-trans (
+  compile-com-correct-terminating H₁ (codeAtAppLeft H)) (star-trans (
+  compile-com-correct-terminating H₂ (codeAtAppRight _ H)) (
+  pc-correct (sym (codelenApp' pc (compile-com c₁)))))
 
 compile-com-correct-terminating (ifthenelse b c₁ c₂ Hc) H =
   star-trans (compile-bexp-correct b (codeAtAppLeft H))
     (star-trans (compile-com-correct-terminating Hc {!!}) {!!})
 
-compile-com-correct-terminating (while-done b c Hb) H = {!!}
+compile-com-correct-terminating (while-done b c Hb) {pc = pc} H =
+  let codec = compile-com c in
+  let codeb = compile-bexp b 0ℤ (codelen codec + 1ℤ) in
+  star-trans (
+  compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
+  pc-correct (cong (λ b → pc + codelen codeb + (if b then _ else _)) Hb)) (
+  pc-correct (trans (+-assoc pc (codelen codeb) _) (begin
+    pc + (codelen codeb + (codelen codec + 1ℤ))
+  ≡⟨ sym (+-assoc pc (codelen codeb) (codelen codec + 1ℤ)) ⟩
+    pc + codelen codeb + (codelen codec + 1ℤ)
+  ≡⟨ cong (_+_ (pc + codelen codeb)) (sym (codelenApp codec)) ⟩
+    pc + codelen codeb + codelen (codec ++ Ibranch _ ∷ [])
+  ≡⟨ sym (codelenApp' pc codeb) ⟩
+    pc + codelen (codeb ++ codec ++ Ibranch _ ∷ [])
+  ∎))))
 
-compile-com-correct-terminating (while-loop b c s Hb Hc) H = {!!}
+compile-com-correct-terminating (while-loop b c Hb Hc Hwhile) {pc = pc} H =
+  let codec = compile-com c in
+  let codeb = compile-bexp b 0ℤ (codelen codec + 1ℤ) in
+  star-trans (
+  compile-bexp-correct b (codeAtAppLeft H)) (star-trans (
+  pc-correct (cong (λ b → pc + codelen codeb + (if b then _ else _)) Hb)) (star-trans (
+  pc-correct (+-identityʳ (pc + codelen codeb))) (star-trans (
+  compile-com-correct-terminating Hc (codeAtAppRight2 codeb H)) (star-trans (
+  one (branch (codeAtHead (codeAtAppRight codec (codeAtAppRight codeb H))) (simpl pc (codelen codeb) (codelen codec) 1ℤ))) (
+  compile-com-correct-terminating Hwhile H))))) where
+  simpl : ∀ a b c d → a ≡ a + b + c + d + - (b + c + d)
+  simpl = solve-∀
